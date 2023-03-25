@@ -382,17 +382,15 @@ class Diffusion(LightningModule):
             h_tp1 : float = l_tp1 - l_t
 
             if x_c is None or sigp1 == 0:
-                x_t = sigp1 / sig * x_t - s * expm1(-h_tp1) * p_t
+                dxdt = p_t
             else:
                 h_t = l_t - logsnr(sigm1)
                 r_t = h_t / h_tp1
 
-                dxdt = (1 + 1 / (2 * r_t)) * x_t - (1 / (2 * r_t)) * x_c
-                x_t = sigp1 / sig * x_t - s * expm1(-h_tp1) * dxdt
-
-            x_c = x_t
-
-            print(f'DPM++ Loop: {x_t.min().item()} {x_t.max().item()}')
+                dxdt = (1 + 1 / (2 * r_t)) * p_t - (1 / (2 * r_t)) * x_c
+            
+            x_t = sigp1 / sig * x_t - s * expm1(-h_tp1) * dxdt
+            x_c = p_t
 
         return x_t
 
