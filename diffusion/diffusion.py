@@ -100,6 +100,8 @@ class Diffusion(LightningModule):
         # Each diffusion model should overwrite its external control
         # embedding module based on the nature of the control itself 
         self.ctrl_emb : Optional[nn.Module] = None
+
+        self.save_hyperparameters()
     
     @property
     def criterion(self) -> Callable:
@@ -224,6 +226,9 @@ class Diffusion(LightningModule):
         # schedule = repeat(schedule, '... -> b ...', b = num_imgs)
         # scaling  = repeat(scaling , '... -> b ...', b = num_imgs)
 
+        # Encode the condition using the sequence encoder
+        ctrl = self.ctrl_emb(ctrl)[:num_imgs] if exists(ctrl) else ctrl
+
         shape = (num_imgs, self.model.channels, *self.img_size)
 
         x_0 = self.sampler(
@@ -247,6 +252,9 @@ class Diffusion(LightningModule):
 
         use_x_c = default(use_x_c, self.self_cond)
         norm_fn = default(norm_fn, self.norm_forward)
+
+        # Encode the condition using the sequence encoder
+        ctrl = self.ctrl_emb(ctrl) if exists(ctrl) else ctrl
 
         # Normalize input images
         x_0 = norm_fn(x_0)
@@ -286,9 +294,6 @@ class Diffusion(LightningModule):
         x_0  = batch[self.data_key]
         ctrl = batch[self.ctrl_key] if exists(self.ctrl_key) else None
 
-        # Encode the condition using the sequence encoder
-        ctrl = self.ctrl_emb(ctrl) if exists(ctrl) else ctrl
-
         loss = self.compute_loss(x_0, ctrl = ctrl)
 
         self.log_dict({'train_loss' : loss}, logger = True, on_step = True, sync_dist = True)
@@ -299,9 +304,6 @@ class Diffusion(LightningModule):
         # Extract the starting images from data batch
         x_0  = batch[self.data_key]
         ctrl = batch[self.ctrl_key] if exists(self.ctrl_key) else None
-
-        # Encode the condition using the sequence encoder
-        ctrl = self.ctrl_emb(ctrl) if exists(ctrl) else ctrl
 
         loss = self.compute_loss(x_0, ctrl = ctrl)
 
@@ -457,8 +459,6 @@ class Diffusion(LightningModule):
                 x_t = x_hat + 0.5 * (sigp1 - sig_hat) * (dx_dt + dxdtp)
             
             x_c = p_hat
-
-            print(f'Heun Loop: {x_t.min().item()} {x_t.max().item()}')
 
         return x_t.clamp(-1., 1.) if clamp else x_t
 
