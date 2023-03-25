@@ -57,9 +57,29 @@ dpm_imgs = model(
 # Save or visualize the images
 ```
 
+Example of a diffusion model with `class-conditioning` control.
+
+```python
+
+from diffusion.elucidated import ElucidatedDiffusion
+from diffusion.module.components.embedding import ClassEmbedder
+
+model = ElucidatedDiffusion.load_from_checkpoint(PATH)
+
+# Set the control-embedder of the model to enable
+# training with external conditioning
+model.ctrl_emb = ClassEmbedder(
+    emb_dim = 32, # Embedding dimension
+    cls_dim = 10, # Number of classes
+    p_dropb = .1, # Dropout probability for conditioning
+)
+
+# Train the model with Lightning Trainer 
+```
+
 ## References
 
-The code is *havily* based on the beautiful (diffusion) repositories by [lucidrains](https://github.com/lucidrains/denoising-diffusion-pytorch) and [crowsonkb](https://github.com/crowsonkb/k-diffusion/tree/b43db16749d51055f813255eea2fdf1def801919).
+The code is *heavily* based on the beautiful (diffusion) repositories by [lucidrains](https://github.com/lucidrains/denoising-diffusion-pytorch) and [crowsonkb](https://github.com/crowsonkb/k-diffusion/tree/b43db16749d51055f813255eea2fdf1def801919).
 
 ```bibtex
 @article{karras2022elucidating,
