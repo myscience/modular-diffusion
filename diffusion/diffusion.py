@@ -100,6 +100,7 @@ class Diffusion(LightningModule):
         # Each diffusion model should overwrite its external control
         # embedding module based on the nature of the control itself 
         self.ctrl_emb : Optional[nn.Module] = None
+        self.null_ctrl = lambda ctrl : torch.zeros_like(ctrl)
 
         self.save_hyperparameters()
     
@@ -199,6 +200,22 @@ class Diffusion(LightningModule):
         return out
     
     @torch.no_grad()
+    def follow(self, *args, ctrl : Optional[Tensor] = None, guide : float = 1., **kwargs):
+        '''
+            Implements Classifier-Free guidance as introduced
+            in Ho & Salimans (2022). 
+        '''
+        if not exists(ctrl) or guide == 1:
+            return self.predict(*args, ctrl = ctrl, **kwargs)
+
+        # Get the unconditioned & conditioned predictions
+        null = self.predict(*args, ctrl = self.null_ctrl(ctrl), **kwargs)
+        cond = self.predict(*args, ctrl = ctrl, **kwargs)
+
+        # Compose the classifier-free prediction
+        return null + guide * (cond - null)
+    
+    @torch.no_grad()
     def forward(
         self,
         num_imgs : int = 4,
@@ -207,6 +224,7 @@ class Diffusion(LightningModule):
         norm_undo : Optional[Callable] = None,
         ctrl : Optional[Tensor] = None,
         use_x_c : Optional[bool] = None,
+        guide : float = 1.,
         **kwargs,
     ) -> Tensor:
         '''
@@ -237,6 +255,7 @@ class Diffusion(LightningModule):
             scaling,
             ctrl = ctrl,
             use_x_c = use_x_c,
+            guide = guide,
             **kwargs
         )
 
@@ -359,6 +378,7 @@ class Diffusion(LightningModule):
         ctrl  : Optional[Tensor] = None,
         use_x_c : Optional[bool] = None,
         clamp : bool = False,
+        guide : float = 1.,
         verbose : bool = False,
     ) -> Tensor:
         '''
@@ -378,7 +398,7 @@ class Diffusion(LightningModule):
         # Iterate through the schedule|scaling three at a time
         pars = zip(groupwise(schedule, n = 3, pad = -1, extend = False), scaling)
         for (sigm1, sig, sigp1), s in tqdm(pars, total = N, desc = 'DPM++', disable = not verbose):
-            p_t = self.predict(x_t, sig, x_c = x_c if use_x_c else None, ctrl = ctrl, clamp = clamp)
+            p_t = self.follow(x_t, sig, x_c = x_c if use_x_c else None, ctrl = ctrl, guide = guide, clamp = clamp)
 
             l_t, l_tp1 = logsnr(sig), logsnr(sigp1)
             h_tp1 : float = l_tp1 - l_t
@@ -408,6 +428,7 @@ class Diffusion(LightningModule):
         ctrl  : Optional[Tensor] = None,
         use_x_c : Optional[bool] = None,
         clamp : bool = False,
+        guide : float = 1.,
         s_tmin : float = 0.05,
         s_tmax : float = 50.,
         s_churn : float = 80,
@@ -444,7 +465,7 @@ class Diffusion(LightningModule):
             x_hat = x_t + sqrt(sig_hat ** 2 - sig ** 2) * eps
 
             # Evaluate dx/dt at scheduled time "hat"
-            p_hat = self.predict(x_hat, sig_hat, x_c = x_c if use_x_c else None, ctrl = ctrl, clamp = clamp)
+            p_hat = self.follow(x_hat, sig_hat, x_c = x_c if use_x_c else None, ctrl = ctrl, guide = guide, clamp = clamp)
             dx_dt = (x_hat - p_hat) / sig_hat
 
             # Take Euler step from schedule time "hat" to time + 1
@@ -453,7 +474,7 @@ class Diffusion(LightningModule):
             # Add second order correction only if schedule not finished yet
             if sigp1 != 0:
                 # Now the conditioning can be last prediction
-                p_hat = self.predict(x_t, sigp1, x_c = x_c if use_x_c else None, ctrl = ctrl, clamp = clamp)
+                p_hat = self.follow(x_t, sigp1, x_c = x_c if use_x_c else None, ctrl = ctrl, guide = guide, clamp = clamp)
                 dxdtp = (x_t - p_hat) / sigp1
 
                 x_t = x_hat + 0.5 * (sigp1 - sig_hat) * (dx_dt + dxdtp)

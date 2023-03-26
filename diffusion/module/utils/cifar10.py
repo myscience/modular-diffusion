@@ -47,18 +47,10 @@ class condCIFAR10(Dataset):
         root : str,
         train : bool = True,
         transform = None,
-        token_dim : int = 4,
-        seq_len   : int = 4,
-        embed_dim : int = None
     ) -> None:
         super().__init__()
 
         self.cifar = CIFAR10(root, train = train, transform = transform, download = True)
-
-        self.seq_len = seq_len
-        self.token_dim = token_dim
-
-        self.embedding = nn.Identity() if embed_dim is None else nn.Embedding(len(self.labels), embed_dim)
 
     def __len__(self):
         return len(self.cifar)
@@ -70,9 +62,6 @@ class condCIFAR10(Dataset):
             # Get the image from CIFAR10
             'smap' : img,
             'lbls' : lbl, 
-
-            # Create a mock-up contextual signal
-            'fmri' : torch.ones(self.seq_len, dtype = int) * lbl
         }
 
         return data

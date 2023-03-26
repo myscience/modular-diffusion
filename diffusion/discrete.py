@@ -21,6 +21,7 @@ class BitDiffusion(Diffusion):
         self,
         model: Module,
         num_bits : int = 1,
+        data_type : str = 'int',
         bit_scale : float = 1.,
         sigma_min : float = 0.002,
         sigma_max : float = 80,
@@ -52,8 +53,17 @@ class BitDiffusion(Diffusion):
 
         self.log_img_key = f'Bit Diffusion - {ode_solver}'
 
-        self.norm_forward  = partial(self.float2bit, nbits = num_bits, scale = bit_scale)
-        self.norm_backward = partial(self.bit2float, nbits = num_bits)
+        if data_type == 'int':
+            data2bit = self.int2bit
+            bit2data = self.bit2int
+        elif data_type == 'float':
+            data2bit = self.float2bit
+            bit2data = self.bit2float
+        else:
+            raise ValueError(f'Unsupported date type {data_type}')
+
+        self.norm_forward  = partial(data2bit, nbits = num_bits, scale = bit_scale)
+        self.norm_backward = partial(bit2data, nbits = num_bits)
 
     # * Functions that define what model actually predicts
     def c_skip(self, sigma : Optional[Tensor] = None) -> Tensor:

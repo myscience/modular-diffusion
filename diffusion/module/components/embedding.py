@@ -124,11 +124,8 @@ class SineEmbedding2D(nn.Module):
         
 class FeatEmbedder(nn.Module):
     '''
-        This module takes a 1-dimensional signal, divides it into (possibly
-        overallping) patches, and embdes it into a space of given dimensionality.
-        The embedding is accomplished via successive 1D convolutions. The
-        resulting 1-dimensional signal is then rearranged into a feature-like
-        tensor for downstream pixel decoding.
+        This module takes a 1-dimensional signal and embeds it into
+        a space of given dimensionality via 1D Convolutions
     '''
 
     def __init__(
